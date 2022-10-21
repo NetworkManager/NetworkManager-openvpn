@@ -222,7 +222,8 @@ tls_setup (GtkBuilder *builder,
 			nma_cert_chooser_set_key_password (cert, value);
 	}
 
-	nma_cert_chooser_setup_key_password_storage (cert, 0, (NMSetting *) s_vpn,
+	nma_cert_chooser_setup_key_password_storage (cert, NM_SETTING_SECRET_FLAG_AGENT_OWNED,
+	                                             (NMSetting *) s_vpn,
 	                                             NM_OPENVPN_KEY_CERTPASS, TRUE, FALSE);
 
 	/* Link choosers to the PKCS#12 changer callbacks */
@@ -262,7 +263,8 @@ pw_setup (GtkBuilder *builder,
 			gtk_editable_set_text (GTK_EDITABLE (widget), value);
 	}
 
-	nma_utils_setup_password_storage (widget, 0, (NMSetting *) s_vpn, NM_OPENVPN_KEY_PASSWORD,
+	nma_utils_setup_password_storage (widget, NM_SETTING_SECRET_FLAG_AGENT_OWNED,
+	                                  (NMSetting *) s_vpn, NM_OPENVPN_KEY_PASSWORD,
 	                                  TRUE, FALSE);
 }
 
@@ -1654,7 +1656,7 @@ advanced_dialog_new (GHashTable *hash, const char *contype)
 		G_STATIC_ASSERT_EXPR (((guint) (NMSettingSecretFlags) 0xFFFFu) == 0xFFFFu);
 		pw_flags = _nm_utils_ascii_str_to_int64 (value, 10, 0, 0xFFFF, NM_SETTING_SECRET_FLAG_NONE);
 	} else
-		pw_flags = NM_SETTING_SECRET_FLAG_NONE;
+		pw_flags = NM_SETTING_SECRET_FLAG_AGENT_OWNED;
 
 	widget = GTK_WIDGET (gtk_builder_get_object (builder, "proxy_password_entry"));
 	nma_utils_setup_password_storage (widget, pw_flags, NULL, NULL,
@@ -2495,7 +2497,6 @@ typedef struct {
 	GtkWindowGroup *window_group;
 	gboolean window_added;
 	GHashTable *advanced;
-	gboolean new_connection;
 	GtkWidget *tls_user_cert_chooser;
 	GFile *sk_key_file;
 } OpenvpnEditorPrivate;
@@ -2854,30 +2855,6 @@ update_connection (NMVpnEditor *iface,
 	if (priv->advanced)
 		g_hash_table_foreach (priv->advanced, hash_copy_advanced, s_vpn);
 
-	/* Default to agent-owned secrets for new connections */
-	if (priv->new_connection) {
-		if (nm_setting_vpn_get_secret (s_vpn, NM_OPENVPN_KEY_HTTP_PROXY_PASSWORD)) {
-			nm_setting_set_secret_flags (NM_SETTING (s_vpn),
-			                             NM_OPENVPN_KEY_HTTP_PROXY_PASSWORD,
-			                             NM_SETTING_SECRET_FLAG_AGENT_OWNED,
-			                             NULL);
-		}
-
-		if (nm_setting_vpn_get_secret (s_vpn, NM_OPENVPN_KEY_PASSWORD)) {
-			nm_setting_set_secret_flags (NM_SETTING (s_vpn),
-			                             NM_OPENVPN_KEY_PASSWORD,
-			                             NM_SETTING_SECRET_FLAG_AGENT_OWNED,
-			                             NULL);
-		}
-
-		if (nm_setting_vpn_get_secret (s_vpn, NM_OPENVPN_KEY_CERTPASS)) {
-			nm_setting_set_secret_flags (NM_SETTING (s_vpn),
-			                             NM_OPENVPN_KEY_CERTPASS,
-			                             NM_SETTING_SECRET_FLAG_AGENT_OWNED,
-			                             NULL);
-		}
-	}
-
 	nm_connection_add_setting (connection, NM_SETTING (s_vpn));
 	valid = TRUE;
 
@@ -2934,7 +2911,17 @@ openvpn_editor_new (NMConnection *connection, GError **error)
 	s_vpn = nm_connection_get_setting_vpn (connection);
 	if (s_vpn)
 		nm_setting_vpn_foreach_data_item (s_vpn, is_new_func, &new);
-	priv->new_connection = new;
+
+	if (new && s_vpn) {
+		nm_setting_set_secret_flags (NM_SETTING (s_vpn),
+		                             NM_OPENVPN_KEY_PASSWORD,
+		                             NM_SETTING_SECRET_FLAG_AGENT_OWNED,
+		                             NULL);
+		nm_setting_set_secret_flags (NM_SETTING (s_vpn),
+		                             NM_OPENVPN_KEY_CERTPASS,
+		                             NM_SETTING_SECRET_FLAG_AGENT_OWNED,
+		                             NULL);
+	}
 
 	if (!init_editor_plugin (OPENVPN_EDITOR (object), connection))
 		g_return_val_if_reached (NULL);
