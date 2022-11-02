@@ -773,7 +773,7 @@ main (int argc, char *argv[])
 		g_variant_builder_add (&builder, "{sv}", NM_VPN_PLUGIN_CONFIG_HAS_IP6, val);
 	}
 
-	if (!ip4config && !ip6config)
+	if (!tapdev && !ip4config && !ip6config)
 		helper_failed (proxy, "IPv4 or IPv6 configuration");
 
 	/* Send the config info to nm-openvpn-service */
