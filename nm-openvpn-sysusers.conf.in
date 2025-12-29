@@ -1,1 +1,1 @@
-u! nm-openvpn - "NetworkManager OpenVPN" @LOCALSTATEDIR@/lib/openvpn/chroot
+u! nm-openvpn - "NetworkManager OpenVPN" - -
